@@ -1,3 +1,7 @@
+#!/bin/bash
+
+# This script sets up a new integration for the Wazuh engine.
+
 set -euo pipefail
 
 ENGINE_NAME=wazuh
@@ -41,6 +45,12 @@ parse_args() {
                 ;;
         esac
     done
+    # Integration name is required
+    if [[ -z "$INTEGRATION_NAME" ]]; then
+        log_error "Integration name is required"
+        usage
+        exit 1
+    fi
 }
 
 navigate_to_repo_root() {
