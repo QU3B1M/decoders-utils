@@ -5,7 +5,7 @@ set -ex
 ### Static tests
 ###
 engine-health-test static -r ./ruleset metadata_validate
-# engine-health-test static -r ./ruleset schema_validate
+engine-health-test static -r ./ruleset schema_validate
 engine-health-test static -r ./ruleset mandatory_mapping_validate
 engine-health-test static -r ./ruleset event_processing_validate
 engine-health-test static -r ./ruleset non_modifiable_fields_validate
