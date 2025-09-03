@@ -3,7 +3,6 @@ import yaml
 import sys
 import json
 import traceback
-import re
 
 
 class NoTagLoader(yaml.SafeLoader):
@@ -56,6 +55,7 @@ def handle_check(processor):
         return {"check": f"${field} == {value}"}
     elif ("!= null" in conditional_block) or ("!= 'null'" in conditional_block) or ("!= ''" in conditional_block):
         return None
+    return None
 
 
 def get_operation(processor):
@@ -96,8 +96,10 @@ def dispatch(processor):
         "foreach": handle_foreach,
         "geoip": handle_geoip,
         "gsub": handle_gsub,
+        "json": handle_json,
         "kv": handle_kv,
         "lowercase": handle_lowercase,
+        "pipeline": handle_pipeline,
         "remove": handle_remove,
         "rename": handle_rename,
         "script": handle_script,
@@ -121,6 +123,7 @@ def dispatch(processor):
 def build_normalize(processors):
     try:
         normalize_list = []
+        map_block = []
         for index, processor in enumerate(processors):
             handle_special_fields(processor)
             map_item = dispatch(processor)
@@ -130,25 +133,25 @@ def build_normalize(processors):
             normalize_length = len(normalize_list)
             if check:
                 normalize_block = {}
-                map = []
+                map_block = []
                 normalize_block.update(check)
                 if parse:
                     normalize_block.update(parse)
                     normalize_list.append(normalize_block)
                     continue
-                normalize_block.update({"map": map})
+                normalize_block.update({"map": map_block})
                 normalize_list.append(normalize_block)
-            elif (index == 0 or "check" in normalize_list[normalize_length - 1].keys()):
+            elif index == 0 or "check" in normalize_list[normalize_length - 1].keys():
                 normalize_block = {}
-                map = []
-                normalize_block.update({"map": map})
+                map_block = []
+                normalize_block.update({"map": map_block})
                 normalize_list.append(normalize_block)
 
             if isinstance(map_item, list):
                 for i in map_item:
-                    map.append(i)
+                    map_block.append(i)
             else:
-                map.append(map_item)
+                map_block.append(map_item)
     except Exception as e:
         traceback.print_exc()
         print(f"{e}\nException processing operation: {operation}")
@@ -191,7 +194,7 @@ def handle_date(processor):
     value = f"${processor['field']}"
     helper_function = "parse_date"
     if "formats" in processor:
-        return [{key: f"{helper_function}({value}, {elastic_to_strftime(format)},en_US.UTF-8)"} for format in processor["formats"]]
+        return [{key: f"{helper_function}({value}, {elastic_to_strftime(format_string)},en_US.UTF-8)"} for format_string in processor["formats"]]
     return {key: f"{helper_function}({value},ISO8601,en_US.UTF-8)"}
 
 
@@ -221,6 +224,13 @@ def handle_gsub(processor):
 
     return {key: f"{helper_function}({value})"}
 
+def handle_json(processor):
+    # Handle 'json' processor logic
+    key = processor["target_field"]
+    value = processor["field"]
+    helper_function = "parse_json"
+
+    return {key: f"{helper_function}(${value})"}
 
 def handle_kv(processor):
     # Handle 'kv' processor logic
@@ -241,6 +251,9 @@ def handle_lowercase(processor):
     helper_function = "downcase"
     return {key: f"{helper_function}({value})"}
 
+def handle_pipeline(processor):
+    # Handle 'pipeline' processor logic
+    return processor["name"]
 
 def handle_remove(processor):
     # Handle 'remove' processor logic
@@ -277,6 +290,7 @@ def handle_set(processor):
         return {processor["field"]: f"${processor['copy_from']}"}
     elif "value" in processor:
         return {processor["field"]: f"{processor['value']}"}
+    return None
 
 
 def handle_split(processor):
@@ -287,7 +301,7 @@ def handle_split(processor):
     # Replace the separator string with a single character
     replace_statement = {key: f"replace('{separator}', '|')"}
     split_statement = {key: f"{helper_function}({value},'|')"}
-    return (replace_statement, split_statement)
+    return replace_statement, split_statement
 
 
 def handle_uppercase(processor):
