@@ -62,6 +62,7 @@ def get_operation(processor):
     operation = list(processor.keys())[0]
     return operation
 
+
 def elastic_to_strftime(fmt: str) -> str:
     mapping = {
         "yyyy": "%Y",   # 4-digit year
@@ -224,6 +225,7 @@ def handle_gsub(processor):
 
     return {key: f"{helper_function}({value})"}
 
+
 def handle_json(processor):
     # Handle 'json' processor logic
     key = processor["target_field"]
@@ -231,6 +233,7 @@ def handle_json(processor):
     helper_function = "parse_json"
 
     return {key: f"{helper_function}(${value})"}
+
 
 def handle_kv(processor):
     # Handle 'kv' processor logic
@@ -251,9 +254,11 @@ def handle_lowercase(processor):
     helper_function = "downcase"
     return {key: f"{helper_function}({value})"}
 
+
 def handle_pipeline(processor):
     # Handle 'pipeline' processor logic
     return processor["name"]
+
 
 def handle_remove(processor):
     # Handle 'remove' processor logic
@@ -299,9 +304,9 @@ def handle_split(processor):
     separator = f"'{processor['separator']}'"
     helper_function = "split"
     # Replace the separator string with a single character
-    replace_statement = {key: f"replace('{separator}', '|')"}
+    replace_statement = {key: f"replace({separator}, '|')"}
     split_statement = {key: f"{helper_function}({value},'|')"}
-    return replace_statement, split_statement
+    return [replace_statement, split_statement]
 
 
 def handle_uppercase(processor):
@@ -348,11 +353,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-class MapTemplate:
-    def __init__(self, name):
-        self.name = name
-
-    def generate_map(self):
-        return {"map": self.name}
