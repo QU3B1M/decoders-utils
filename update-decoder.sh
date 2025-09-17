@@ -1,9 +1,11 @@
+
 #!/bin/bash
 
-# This script updates a Wazuh decoder.
+# DESCRIPTION:
+#     This script updates a Wazuh decoder.
+#     Usage: update-decoder.sh <decoder_name> [-d <decoder_dir>] [-f <decoder_file>] [-h]
 
 set -euo pipefail
-RULESET_DIR=0
 
 # Logging functions
 log_info() {
@@ -19,18 +21,83 @@ log_success() {
 }
 
 usage() {
-    echo "Usage: $0 -n <decoder_name> [-d <decoder_dir>]"
-    echo "       -n: Name of the decoder"
-    echo "       -d: Directory of the decoder (default: same as decoder name)"
-    exit 1
+    cat << EOF
+Usage: $0 <decoder_name> [-d <decoder_dir>] [-f <decoder_file>] [-h]
+
+ARGUMENTS:
+    decoder_name         Name of the decoder (required, positional)
+                        Must contain only alphanumeric characters, hyphens, and underscores
+
+OPTIONS:
+    -d <decoder_dir>     Directory of the decoder (optional, default: same as decoder name)
+    -f <decoder_file>    File containing the decoder configuration (optional, default: decoder_name.yml)
+    -h                   Show this help message
+
+EXAMPLES:
+    $0 my-decoder
+    $0 my-decoder -d custom-dir
+    $0 my-decoder -f custom-file.yml
+EOF
+    exit 0
 }
 
-navigate_to_ruleset_root() {
-    # If RULESET_DIR directly navigate to it
-    if [[ -d "$RULESET_DIR" ]]; then
-        cd $RULESET_DIR
-        return
+parse_args() {
+    DECODER_NAME=""
+    DECODER_DIR=""
+    DECODER_FILE=""
+
+    if [[ $# -eq 0 ]]; then
+        log_error "No arguments provided"
+        usage
     fi
+
+    DECODER_NAME="$1"
+    shift
+
+    # Validate decoder name format
+    if [[ ! "$DECODER_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        log_error "Invalid decoder name format. Use only alphanumeric characters, hyphens, and underscores."
+        exit 1
+    fi
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d)
+                if [[ $# -lt 2 ]]; then
+                    log_error "Option -d requires an argument"
+                    usage
+                fi
+                DECODER_DIR="$2"
+                shift 2
+                ;;
+            -f)
+                if [[ $# -lt 2 ]]; then
+                    log_error "Option -f requires an argument"
+                    usage
+                fi
+                DECODER_FILE="$2"
+                shift 2
+                ;;
+            -h)
+                usage
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                usage
+                ;;
+        esac
+    done
+
+    # Set defaults if not provided
+    DECODER_DIR=${DECODER_DIR:-$DECODER_NAME}
+    DECODER_FILE=${DECODER_FILE:-$DECODER_NAME.yml}
+
+    log_info "Using decoder: $DECODER_NAME"
+    log_info "Using decoder directory: $DECODER_DIR"
+    log_info "Using decoder file: $DECODER_FILE"
+}
+
+navigate_to_repo_root() {
     repo_root_marker="intelligence-data"
     script_path=$(dirname "$(realpath "$0")")
 
@@ -42,50 +109,19 @@ navigate_to_ruleset_root() {
 
     RULESET_DIR=$(pwd)/ruleset
 
-    # Load the integrations
+    # Load the decoders
     cd "$RULESET_DIR" || exit 1
-}
-
-parse_args() {
-    # Check if any arguments were provided
-    if [[ $# -eq 0 ]]; then
-        log_error "No arguments provided"
-        usage
-        exit 1
-    fi
-    # Parse the arguments
-    while getopts ":n:d:" opt; do
-        case $opt in
-            n) DECODER_NAME="$OPTARG" ;;
-            d) DECODER_DIR="$OPTARG" ;;
-            ?) 
-                log_error "Unknown option: -$opt"
-                usage
-                exit 1
-                ;;
-        esac
-    done
-
-    # Decoder name is required
-    if [[ -z "$DECODER_NAME" ]]; then
-        log_error "Decoder name is required"
-        usage
-        exit 1
-    fi
-
-    # If not decoder directory defined asume it repeates the decoder name
-    DECODER_DIR=${DECODER_DIR:-$DECODER_NAME}
 }
 
 action_update() {
     log_info "Updating decoder: $DECODER_NAME"
-    engine-catalog -n wazuh update decoder/$DECODER_NAME/0 < decoders/$DECODER_DIR/$DECODER_NAME.yml || {
+    if ! engine-catalog -n wazuh update decoder/$DECODER_NAME/0 < decoders/$DECODER_DIR/$DECODER_FILE; then
         log_error "Failed to update decoder"
         exit 1
-    }
+    fi
     log_success "Decoder updated successfully"
 }
 
-parse_args "${@}"
-navigate_to_ruleset_root
+parse_args "$@"
+navigate_to_repo_root
 action_update
