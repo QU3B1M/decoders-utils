@@ -15,20 +15,20 @@ engine-integration add -n system wazuh-core
 engine-integration add -n wazuh apache-http
 engine-integration add -n wazuh auditd
 engine-integration add -n wazuh checkpoint
+engine-integration add -n wazuh windows
 engine-integration add -n wazuh gcp
 engine-integration add -n wazuh iis
 engine-integration add -n wazuh microsoft-dhcp
 engine-integration add -n wazuh microsoft-dnsserver
 engine-integration add -n wazuh microsoft-exchange-server
 engine-integration add -n wazuh modsecurity
+engine-integration add -n wazuh syslog
 engine-integration add -n wazuh pfsense
 engine-integration add -n wazuh snort
 engine-integration add -n wazuh squid
 engine-integration add -n wazuh suricata
-engine-integration add -n wazuh syslog
 engine-integration add -n wazuh system
 engine-integration add -n wazuh wazuh-dashboard
-engine-integration add -n wazuh windows
 engine-integration add -n wazuh zeek
 
 # Load the rules
@@ -51,6 +51,8 @@ engine-policy asset-add -n wazuh integration/apache-http/0
 engine-policy asset-add -n wazuh integration/auditd/0
 engine-policy asset-add -n wazuh integration/checkpoint/0
 engine-policy asset-add -n wazuh integration/gcp/0
+engine-policy asset-add -n wazuh integration/syslog/0
+engine-policy asset-add -n wazuh integration/windows/0
 engine-policy asset-add -n wazuh integration/iis/0
 engine-policy asset-add -n wazuh integration/microsoft-dhcp/0
 engine-policy asset-add -n wazuh integration/microsoft-dnsserver/0
@@ -60,10 +62,8 @@ engine-policy asset-add -n wazuh integration/pfsense/0
 engine-policy asset-add -n wazuh integration/snort/0
 engine-policy asset-add -n wazuh integration/squid/0
 engine-policy asset-add -n wazuh integration/suricata/0
-engine-policy asset-add -n wazuh integration/syslog/0
 engine-policy asset-add -n wazuh integration/system/0
 engine-policy asset-add -n wazuh integration/wazuh-dashboard/0
-engine-policy asset-add -n wazuh integration/windows/0
 engine-policy asset-add -n wazuh integration/zeek/0
 # Add the rules (They are not necessary if you only want to develop decoders)
 engine-policy asset-add -n wazuh integration/auditd-rules/0
