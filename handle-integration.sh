@@ -1,6 +1,21 @@
 #!/bin/bash
 
-# This script sets up a new integration for the Wazuh engine.
+# DESCRIPTION:
+#     This script manages integrations for the Wazuh engine:
+#     
+#     Setup (up action):
+#     1. Adding the integration to the engine
+#     2. Adding the integration policy
+#     3. Setting up basic test configuration
+#     
+#     Cleanup (down action):
+#     1. Removing test configuration
+#     2. Removing integration policy
+#     3. Removing integration from engine
+#     
+#     Reload (--reload flag):
+#     1. Performs cleanup if integration exists
+#     2. Performs setup
 
 set -euo pipefail
 
@@ -21,7 +36,7 @@ log_success() {
 
 usage() {
     cat << EOF
-Usage: $0 <integration_name> [-n <namespace>] [-a <action>] [--reload] [-h]
+Usage: $0 <integration_name> [-n <namespace>] [-a <action>] [--reload] [--remove] [--generate-docs] [-h]
 
 ARGUMENTS:
     integration_name        Name of the integration (required, positional)
@@ -31,29 +46,15 @@ OPTIONS:
     -n <namespace>          Name of the namespace (optional, default: $NAMESPACE)
                            Must contain only alphanumeric characters, hyphens, and underscores
     --reload                Reload integration (cleanup + setup) - overrides -a flag
+    --remove                Remove the integration (cleanup)
+    --generate-docs         Generate documentation for the integration
     -h                      Show this help message
 
 EXAMPLES:
-    $0 cisco-ios                              # Setup integration
-    $0 oracle-weblogic -n custom-engine       # Setup with custom namespace
-    $0 my_integration_123 --reload            # Reload integration (down + up)
+    $0 my-integration                       # Setup integration
+    $0 my-integration -n custom-engine      # Setup with custom namespace
+    $0 my-integration --reload              # Reload integration (down + up)
 
-DESCRIPTION:
-    This script manages integrations for the Wazuh engine:
-    
-    Setup (up action):
-    1. Adding the integration to the engine
-    2. Adding the integration policy
-    3. Setting up basic test configuration
-    
-    Cleanup (down action):
-    1. Removing test configuration
-    2. Removing integration policy
-    3. Removing integration from engine
-    
-    Reload (--reload flag):
-    1. Performs cleanup if integration exists
-    2. Performs setup
 EOF
     exit 0
 }
@@ -105,7 +106,14 @@ parse_args() {
                 ACTION="down"
                 shift
                 ;;
+            --generate-docs)
+                ACTION="generate-docs"
+                shift
+                ;;
             -h)
+                usage
+                ;;
+            --help)
                 usage
                 ;;
             -*)
@@ -237,6 +245,53 @@ action_reload() {
     log_success "Integration '$INTEGRATION_NAME' reload completed successfully!"
 }
 
+action_generate_docs() {
+    cd $INTEGRATION_NAME || {
+        log_error "Integration directory '$INTEGRATION_NAME' does not exist"
+        exit 1
+    }
+    log_info "Checking documentation.yml file..."
+    if [[ ! -f documentation.yml ]]; then
+        log_error "documentation.yml file not found in integration '$INTEGRATION_NAME'"
+        exit 1
+    fi
+    if ! grep -q "title:" documentation.yml; then
+        log_error "documentation.yml is missing the 'title' field"
+        exit 1
+    fi
+    if ! grep -q "overview:" documentation.yml; then
+        log_error "documentation.yml is missing the 'overview' field"
+        exit 1
+    fi
+    if ! grep -q "compatibility:" documentation.yml; then
+        log_error "documentation.yml is missing the 'compatibility' field"
+        exit 1
+    fi
+    if ! grep -q "configuration:" documentation.yml; then
+        log_error "documentation.yml is missing the 'configuration' field"
+        exit 1
+    fi
+    if ! grep -q "event:" documentation.yml; then
+        log_error "documentation.yml is missing the 'event' field"
+        exit 1
+    fi
+    if ! grep -q "module:" documentation.yml; then
+        log_error "documentation.yml is missing the 'module' field under 'event'"
+        exit 1
+    fi
+    if ! grep -q "dataset:" documentation.yml; then
+        log_error "documentation.yml is missing the 'dataset' field under 'event'"
+        exit 1
+    fi
+    log_info "Generating documentation for integration '$INTEGRATION_NAME'..."
+    engine-integration generate-doc || {
+        log_error "Failed to generate documentation for integration '$INTEGRATION_NAME'"
+        exit 1
+    }
+    cd ..
+    log_success "Documentation generation completed successfully!"
+}
+
 parse_args "${@}"
 navigate_to_repo_root
 
@@ -250,6 +305,9 @@ case "$ACTION" in
         ;;
     "reload")
         action_reload
+        ;;
+    "generate-docs")
+        action_generate_docs
         ;;
     *)
         log_error "Unknown action: $ACTION"
