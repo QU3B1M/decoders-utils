@@ -23,18 +23,34 @@ def handle_special_fields(processor):
 
 def handle_parse(processor):
     operation = get_operation(processor)
+    if operation == "grok":
+        key = processor[operation]["field"]
+        patterns = []
+        # Replace %{PATTERN} with <PATTERN>
+        for pattern in processor[operation].get("patterns", []):
+            patterns.append(pattern.replace("%{", "<").replace("}", ">"))
+        # Substitute pattern definitions if present
+        definitions = processor[operation].get("pattern_definitions", {})
+        if definitions:
+            for def_key, def_value in definitions.items():
+                def_value = def_value.replace("%{", "<").replace("}", ">")
+                patterns = [p.replace(def_key, def_value) for p in patterns]
+        return {f"parse|{key}": patterns} if patterns else None
+
     if operation == "dissect":
-        if "field" in processor[operation]:
-            key = processor[operation]["field"]
-            value = processor[operation]["pattern"].replace(
-                "%{", "<").replace("}", ">")
-            return {f"parse|{key}": [value]}
+        key = processor[operation]["field"]
+        pattern = processor[operation].get("pattern", "")
+        if pattern:
+            pattern = pattern.replace("%{", "<").replace("}", ">")
+            return {f"parse|{key}": [pattern]}
+        return None
+
     return None
 
 
 def handle_check(processor):
     operation = get_operation(processor)
-    if operation == "dissect":
+    if operation == "dissect" or operation == "grok":
         key = processor[operation]["field"]
         return {"check": f"exists(${key})"}
     if "if" not in processor[operation].keys():
@@ -94,6 +110,7 @@ def dispatch(processor):
         "append": handle_append,
         "convert": handle_convert,
         "date": handle_date,
+        "fingerprint": handle_fingerprint,
         "foreach": handle_foreach,
         "geoip": handle_geoip,
         "gsub": handle_gsub,
@@ -106,14 +123,15 @@ def dispatch(processor):
         "script": handle_script,
         "set": handle_set,
         "split": handle_split,
+        "trim": handle_trim,
         "uppercase": handle_uppercase,
         "urldecode": handle_urldecode,
         "uri_parts": handle_urldecode,
         "user_agent": handle_user_agent,
         # "dissect" is intentionally skipped
     }
-    if operation == "dissect":
-        # Skipping dissect as it is handled as a special case
+    if operation == "dissect" or operation == "grok":
+        # Skipping dissect and grok as they are handled as special cases
         return None
     if operation in handlers:
         return handlers[operation](processor[operation])
@@ -191,12 +209,35 @@ def handle_convert(processor):
 
 def handle_date(processor):
     # Handle 'date' processor logic
-    key = processor["target_field"]
+    if processor.get("target_field"):
+        key = processor["target_field"]
+    else:
+        key = processor['field']
     value = f"${processor['field']}"
     helper_function = "parse_date"
     if "formats" in processor:
         return [{key: f"{helper_function}({value}, {elastic_to_strftime(format_string)},en_US.UTF-8)"} for format_string in processor["formats"]]
     return {key: f"{helper_function}({value},ISO8601,en_US.UTF-8)"}
+
+
+def handle_fingerprint(processor):
+    # Handle 'fingerprint' processor logic
+    key = processor["target_field"]
+    fields = processor.get("fields", [])
+    if len(fields) < 2:
+        value = f"${fields[0]}"
+        helper_function = "sha1"
+        return {key: f"{helper_function}({value})"}
+
+    tmp_field = "_to_hash"
+    # Concatenate all fields into a temporary field
+    concat_fields = ",".join([f"${f}" for f in fields])
+    concat_statement = {tmp_field: f"concat_any({concat_fields})"}
+    # Hash the concatenated value
+    hash_statement = {key: f"sha1(${tmp_field})"}
+    # Remove the temporary field
+    delete_statement = {tmp_field: "delete()"}
+    return [concat_statement, hash_statement, delete_statement]
 
 
 def handle_foreach(processor):
@@ -307,6 +348,13 @@ def handle_split(processor):
     replace_statement = {key: f"replace({separator}, '|')"}
     split_statement = {key: f"{helper_function}({value},'|')"}
     return [replace_statement, split_statement]
+
+
+def handle_trim(processor):
+    key = processor["field"]
+    value = f"${key}"
+    helper_function = "trim"
+    return {key: f"{helper_function}({value}, 'both', ' ')"}
 
 
 def handle_uppercase(processor):
