@@ -56,7 +56,7 @@ def handle_check(processor):
     if "if" not in processor[operation].keys():
         return None
     conditional_block = processor[operation]["if"]
-    conditional_block = conditional_block.replace("ctx.", "").replace(
+    conditional_block = conditional_block.replace("ctx.", "").replace("ctx?.", "").replace(
         "?", "").replace("&&", "AND").replace("||", "OR")
     if ".contains(" in conditional_block:
         # Handle contains logic
@@ -69,8 +69,8 @@ def handle_check(processor):
         field = parts[0].strip()
         value = parts[1].strip()
         return {"check": f"${field} == {value}"}
-    elif ("!= null" in conditional_block) or ("!= 'null'" in conditional_block) or ("!= ''" in conditional_block):
-        return None
+    else:
+        return {"check": conditional_block}
     return None
 
 
@@ -109,6 +109,7 @@ def dispatch(processor):
     handlers = {
         "append": handle_append,
         "convert": handle_convert,
+        "csv": handle_csv,
         "date": handle_date,
         "fingerprint": handle_fingerprint,
         "foreach": handle_foreach,
@@ -205,6 +206,15 @@ def handle_convert(processor):
     helper_function = f"parse_{processor['type']}"
 
     return {key: f"{helper_function}(${value})"}
+
+def handle_csv(processor):
+    # Handle 'csv' processor logic
+    key = processor["field"]
+    helper_function = f"parse_csv"
+    target_fields = processor.get("target_fields", [])
+
+
+    return {key: f"{helper_function}(${key}, {','.join(target_fields)})"}
 
 
 def handle_date(processor):
